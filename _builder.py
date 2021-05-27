@@ -164,6 +164,7 @@ def setup(
     loop = asyncio.get_event_loop()
 
     worker = MessageWorker(work_dir, maxsize)
+    loop.run_until_complete(worker.queue.reload())
 
     if consumers < 1:
         consumers = min(32, (os.cpu_count() or 1) + 4)
