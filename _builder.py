@@ -69,16 +69,14 @@ class MessageQueue:
         self._cache = asyncio.Queue()
         if os.path.exists(os.path.join(self._cwd, f'{repr(self)}_data')):
             os.rename(os.path.join(self._cwd, f'{repr(self)}_data'), os.path.join(self._cwd, f'{repr(self)}_data_tmp'))
-        if not os.path.exists(os.path.join(self._cwd, f'{repr(self)}_data_tmp')):
-            return
-
-        async with aiofiles.open(os.path.join(self._cwd, f'{repr(self)}_data_tmp'), 'rb') as f:
-            lines = await f.readlines()
-            for index in range(len(lines)):
-                if index < self._cursor:
-                    continue
-                channel, data = pickle.loads(lines[index])
-                await self.put(channel, data)
+        if os.path.exists(os.path.join(self._cwd, f'{repr(self)}_data_tmp')):
+            async with aiofiles.open(os.path.join(self._cwd, f'{repr(self)}_data_tmp'), 'rb') as f:
+                lines = await f.readlines()
+                for index in range(len(lines)):
+                    if index < self._cursor:
+                        continue
+                    channel, data = pickle.loads(lines[index])
+                    await self.put(channel, data)
         async with aiofiles.open(os.path.join(self._cwd, f'{repr(self)}_index'), 'w') as f:
             await f.write('0\n')
             await f.flush()
