@@ -12,6 +12,7 @@ import pickle
 from ._publisher import Publisher
 
 BUF_SIZE = 1024
+MAX_SIZE = 2**20 * 5
 HOST = ''
 PORT = 11210
 
@@ -25,7 +26,15 @@ logger = logging.getLogger('MQ')
 
 
 class ParamsError(Exception):
-    pass
+
+    def __str__(self):
+        return '[10004]'
+
+
+class OutOfBoundError(Exception):
+
+    def __str__(self):
+        return '[10005]out of bounds'
 
 
 class MessageQueue:
@@ -164,8 +173,7 @@ def setup(
     worker = MessageWorker(work_dir, maxsize)
     loop.run_until_complete(worker.queue.reload())
 
-    if consumers < 1:
-        consumers = min(32, (os.cpu_count() or 1) + 4)
+    consumers = consumers if consumers > 0 else min(32, (os.cpu_count() or 1) + 4)
     for i in range(consumers):
         logger.info(f'Consumer {i + 1} started')
         consumer = MessageConsumer(worker.queue, publishers)
@@ -173,21 +181,26 @@ def setup(
 
     async def handle(reader, writer):
         message = b''
-        while True:
-            pkg = await reader.read(BUF_SIZE)
-            message += pkg
-            if len(pkg) < BUF_SIZE:
-                break
+        total = 0
         try:
+            while True:
+                pkg = await reader.read(BUF_SIZE)
+                message += pkg
+                if len(pkg) < BUF_SIZE:
+                    break
+                total += BUF_SIZE
+                if total > MAX_SIZE:
+                    raise OutOfBoundError()
+
             channel, data = __create_task(message)
             await worker.produce(channel, data)
             res = data_format.copy()
             res['success'] = True
             writer.write(__struct(res))
-        except ParamsError:
+        except (ParamsError, OutOfBoundError) as ex:
             res = data_format.copy()
             res['success'] = False
-            res['message'] = '[10004]'
+            res['message'] = str(ex)
             writer.write(__struct(res))
         finally:
             await writer.drain()
