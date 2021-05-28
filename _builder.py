@@ -5,7 +5,6 @@ import asyncio
 import logging
 from typing import List
 
-import aiofiles
 import os
 import pickle
 
@@ -40,23 +39,15 @@ class OutOfBoundError(Exception):
 class MessageQueue:
 
     def __init__(self, cwd='', maxsize=-1):
-        self._cache = asyncio.Queue()
         self._cursor = 0
-        self._maxsize = maxsize if maxsize > 0 else 1000
+        self._maxsize = maxsize if maxsize > 0 else 0
+        self._cache = asyncio.Queue(maxsize=self._maxsize)
         self._cwd = cwd
-        if os.path.exists(os.path.join(self._cwd, f'{repr(self)}_index')):
-            try:
-                with open(os.path.join(self._cwd, f'{repr(self)}_index'), 'r') as f:
-                    self._cursor = int(f.readlines()[-1])
-            except (ValueError, IndexError, TypeError):
-                with open(os.path.join(self._cwd, f'{repr(self)}_index'), 'w') as f:
-                    f.write('0')
 
     def __repr__(self):
         return 'message_queue'
 
     async def put(self, channel, data):
-        await self.save(channel, data)
         await self._cache.put((channel, data))
 
     async def get(self):
@@ -65,41 +56,12 @@ class MessageQueue:
 
     async def next(self):
         self._cursor += 1
-        if self._cursor > self._maxsize:
-            await self.reload()
-        else:
-            await self.save_cursor()
 
     def task_done(self):
         return self._cache.task_done()
 
     async def reload(self):
-        del self._cache
-        self._cache = asyncio.Queue()
-        if os.path.exists(os.path.join(self._cwd, f'{repr(self)}_data')):
-            os.rename(os.path.join(self._cwd, f'{repr(self)}_data'), os.path.join(self._cwd, f'{repr(self)}_data_tmp'))
-        if os.path.exists(os.path.join(self._cwd, f'{repr(self)}_data_tmp')):
-            async with aiofiles.open(os.path.join(self._cwd, f'{repr(self)}_data_tmp'), 'rb') as f:
-                lines = await f.readlines()
-                for index in range(len(lines)):
-                    if index < self._cursor:
-                        continue
-                    channel, data = pickle.loads(lines[index])
-                    await self.put(channel, data)
-        async with aiofiles.open(os.path.join(self._cwd, f'{repr(self)}_index'), 'w') as f:
-            await f.write('0\n')
-            await f.flush()
         self._cursor = 0
-
-    async def save(self, channel, data):
-        async with aiofiles.open(os.path.join(self._cwd, f'{repr(self)}_data'), 'ab') as f:
-            await f.write(memoryview(pickle.dumps((channel, data), protocol=5) + b'\n'))
-            await f.flush()
-
-    async def save_cursor(self):
-        async with aiofiles.open(os.path.join(self._cwd, f'{repr(self)}_index'), 'a') as f:
-            await f.write(str(self._cursor)+'\n')
-            await f.flush()
 
     def empty(self):
         return self._cache.empty()
