@@ -97,16 +97,17 @@ class MessageConsumer:
         self.publishers.append(publisher)
 
     async def consume(self):
-        channel, data = await self.queue.get()
-        try:
-            for publisher in self.publishers:
-                if publisher.contains_channel(channel):
-                    await publisher.publish(data)
-                    logger.info(f'{channel} publish to {publisher.__class__.__name__}')
-        except Exception as ex:
-            logger.error(f'{channel}:[{ex.__class__.__name__}] {ex}')
-        finally:
-            await self.queue.next()
+        while True:
+            channel, data = await self.queue.get()
+            try:
+                for publisher in self.publishers:
+                    if publisher.contains_channel(channel):
+                        await publisher.publish(data)
+                        logger.info(f'{channel} publish to {publisher.__class__.__name__}')
+            except Exception as ex:
+                logger.error(f'{channel}:[{ex.__class__.__name__}] {ex}')
+            finally:
+                await self.queue.next()
 
 
 def __create_task(message):
