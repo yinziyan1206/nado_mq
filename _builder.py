@@ -111,7 +111,7 @@ class MessageConsumer:
 
 
 def __create_task(message):
-    command = pickle.loads(message, encoding='utf-8')
+    command = pickle.loads(message)
     if 'channel' in command and 'data' in command:
         return command['channel'], command['data']
     else:
