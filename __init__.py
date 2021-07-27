@@ -3,7 +3,7 @@ from ._publisher import Publisher
 from ._builder import setup
 
 __author__ = 'ziyan.yin'
-__version__ = '1.0.4'
+__version__ = '1.0.5'
 
 
 __all__ = ['Publisher', 'setup']
