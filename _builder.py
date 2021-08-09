@@ -4,7 +4,7 @@ __author__ = 'ziyan.yin'
 import asyncio
 import logging
 from typing import List
-
+from nado_utils import cryptutils
 import os
 import pickle
 
@@ -112,6 +112,14 @@ class MessageConsumer:
 
 def __create_task(message):
     command = pickle.loads(message)
+    if 'signature' not in command:
+        raise ParamsError()
+    else:
+        signature = command['signature']
+        del command['signature']
+        if signature != cryptutils.sha256(str(command) + 'NadoUnit'):
+            raise ParamsError()
+
     if 'channel' in command and 'data' in command:
         return command['channel'], command['data']
     else:
