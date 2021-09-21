@@ -97,17 +97,23 @@ class MessageConsumer:
         self.publishers.append(publisher)
 
     async def consume(self):
+
+        async def _publish(task):
+            try:
+                await task.publish(data)
+                logger.info(f'{channel} publish to {task.__class__.__name__}')
+            except Exception as ex:
+                logger.error(
+                    f'{channel}:'
+                    f'[{ex.__class__.__name__}] {task.__class__.__name__} broken {ex}'
+                )
+
         while True:
             channel, data = await self.queue.get()
-            try:
-                for publisher in self.publishers:
-                    if publisher.contains_channel(channel):
-                        await publisher.publish(data)
-                        logger.info(f'{channel} publish to {publisher.__class__.__name__}')
-            except Exception as ex:
-                logger.error(f'{channel}:[{ex.__class__.__name__}] {ex}')
-            finally:
-                await self.queue.next()
+            for publisher in self.publishers:
+                if publisher.contains_channel(channel):
+                    asyncio.ensure_future(_publish(publisher))
+            await self.queue.next()
 
 
 def __create_task(message):
