@@ -155,17 +155,11 @@ def setup(
         asyncio.ensure_future(consumer.consume())
 
     async def handle(reader, writer):
-        message = b''
-        total = 0
         try:
-            while True:
-                pkg = await reader.read(BUF_SIZE)
-                message += pkg
-                if len(pkg) < BUF_SIZE:
-                    break
-                total += BUF_SIZE
-                if total > MAX_SIZE:
-                    raise OutOfBoundError()
+            content_length = int((await reader.read(16)).removesuffix(b'\r\n\r\n'))
+            if content_length > MAX_SIZE:
+                raise OutOfBoundError()
+            message = await reader.read(content_length)
 
             channel, data = __create_task(message)
             await worker.produce(channel, data)
